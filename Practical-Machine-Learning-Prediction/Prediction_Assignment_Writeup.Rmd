@@ -1,0 +1,169 @@
+  ---
+title: "Weight Lifting Exercises Prediction"
+author: "Onur BÝLGÝÇ"
+date: "29 September 2016"
+output: html_document
+---
+## Weight Lifting Exercises Dataset
+
+This human activity recognition research has traditionally focused on discriminating between different activities, i.e. to predict "which" activity was performed at a specific point in time (like with the Daily Living Activities dataset above). The approach we propose for the Weight Lifting Exercises dataset is to investigate "how (well)" an activity was performed by the wearer. The "how (well)" investigation has only received little attention so far, even though it potentially provides useful information for a large variety of applications,such as sports training.
+
+In this work (see the paper) we first define quality of execution and investigate three aspects that pertain to qualitative activity recognition: the problem of specifying correct execution, the automatic and robust detection of execution mistakes, and how to provide feedback on the quality of execution to the user. We tried out an on-body sensing approach (dataset here), but also an "ambient sensing approach" (by using Microsoft Kinect - dataset still unavailable)
+
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+![ Figure 1- Sensors Layout](C:\Onur_Data\Folder\DATA SCIENCE\ML\project\img1.png)
+
+We will use caret package for machine learning applications. Also there are some packages are needed which you can see the below code chunk 
+
+
+
+```{r,message = FALSE}
+library(e1071)
+library(corrplot)
+library(caret)
+library(kernlab)
+library(ggplot2)
+library(rpart)
+library(rattle)
+```
+
+# Getting Data 
+
+You can see the data links below. They were taken from course assignment page. 
+
+```{r,}
+foldername1<-"pml-training.csv"
+if (!file.exists(foldername1)){
+  file_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+  download.file( file_url, foldername1)
+} 
+traindata<-read.csv(foldername1,header = TRUE,na.strings = c("NA",""))
+foldername2<-"pml-testing.csv"
+if (!file.exists(foldername2)){
+  file_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+  download.file( file_url, foldername2)
+} 
+testdata<-read.csv(foldername2,header = TRUE,na.strings = c("NA",""))
+
+features<-as.data.frame(names(traindata))
+names(features)<-"Features"
+```
+
+
+
+
+## Cleaning Data  
+
+Below loop shows that 100 features of data have 19216 quantity of observation are missing value. It is easy and benefical way to ignore these features. 
+
+```{r}
+c<-data.frame(V1=character(), 
+                     V2=character(),
+                     stringsAsFactors=FALSE)
+for(i in 1:length(names(traindata))){
+    c[i,2]<-sum(is.na(traindata[,i]))}
+
+c$V1<-names(traindata)
+names(c)<-c("feature","Train NA-Counts")
+c[1:20,]
+```
+
+Number of non-NA Features
+```{r}
+sum(c[,2]==0)
+```
+
+Number of NA Features
+```{r}
+sum(c[,2]==19216)
+```
+
+The new train and  new test data are arranged for the rest of the prediction.
+```{r}
+d<-c[c$`Train NA-Counts`==0,]
+e<-d[-c(1,2),1]
+f<-d[-c(1,2,60),1]
+newtrain<-traindata[,e]
+newtestdata<-testdata[,f]
+
+```
+
+
+## Plotting Data
+
+After the plot we can assume that most of features in our new train dataset aren't correlated each other. 
+
+```{r}
+
+m<-cbind(newtrain[1:2],newtrain[5:57])
+z<-cor(m)
+corrplot(z,method = "square")
+
+```
+
+## Modelling 
+
+The training data for cross validation is arranged  0.75 from the main train data. The caret package can supply easy ways to split data to training and testing. 
+
+```{r}
+inTrain<-createDataPartition(y=newtrain$classe,p=.75,list = FALSE)
+  training<- newtrain[inTrain,]
+  testing<- newtrain[-inTrain,]
+dim(training)  
+dim(testing)
+
+```
+
+###Decision Tree
+
+The first model is decision tree. The model splits the data to levels by using decision 	criterias. In below model gives us %64 accuracy . It is not enough for trustable predictions.   
+
+```{r}
+set.seed(1112)
+modelfit0<-train(classe~.,method="rpart",data=training)
+pred0<-predict(modelfit0,testing)
+confusionMatrix(pred0,testing$classe)
+fit<-rpart(classe~.,data=training)
+fancyRpartPlot(fit)
+```
+
+
+
+
+###Random forest
+
+Secondly Random forest is implemented on the data.It is an alternative decision tree but it is more efficient. The number tree is 10 . It is very low but it will be enough and fast. After that the confusion matrix shows us that random forest gets %99 accuracy in testing data. It is highly trustable prediction for this expriment. 
+
+```{r,message = FALSE}
+set.seed(123)
+modelfit1<-train(classe~.,data = training,method="rf",ntree=10)
+pred1<-predict(modelfit1,testing)
+confusionMatrix(pred1,testing$classe)
+```
+
+
+### Support Vector Machine
+
+The last algorithm is Support Vector Machine. It is good way to classify outcome levels. It works that one line split the value p and p'.After that 
+ýt selects the prediction levels. At the end the accuracy is %95 for this model. 
+
+```{r}
+set.seed(111112)
+modelfit2<-svm(classe~.,data = training)
+pred2<-predict(modelfit2,testing)
+confusionMatrix(pred2,testing$classe)
+
+```
+
+## Conclusion
+
+After the three model we understand that Random Forest works better than others. In below chunk it is used for test data . You can see the 20 prediction of this data. 
+
+```{r}
+
+pred3<-predict(modelfit1,newtestdata)
+pred3
+
+```
+
